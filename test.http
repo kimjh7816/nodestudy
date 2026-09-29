@@ -1,0 +1,214 @@
+# 2주차 과제: 게시판 API 테스트
+# 위에서부터 순서대로 보내세요. (중간에 서버가 재시작되면 데이터가 초기화되니 처음부터)
+# 초기 데이터: 게시글 1(철수), 2(영희), 3(철수, "제주도 여행 후기") / 댓글 1, 2 (1번 글)
+
+@baseUrl = http://localhost:3000
+
+########## 게시글 목록 (쿼리) ##########
+
+### 1. 목록 조회 (기본: 최신순, page 1, limit 10) → 200, total 3, id 3→2→1
+GET {{baseUrl}}/posts
+
+### 2. 작성자 필터 (author=철수) → 200, total 2
+GET {{baseUrl}}/posts?author=%EC%B2%A0%EC%88%98
+
+### 3. 제목 검색 (search=여행) → 200, total 1
+GET {{baseUrl}}/posts?search=%EC%97%AC%ED%96%89
+
+### 4. 오래된순 정렬 → 200, id 1→2→3
+GET {{baseUrl}}/posts?sort=oldest
+
+### 5. 페이지네이션 (page=2, limit=2) → 200, totalPages 2, data에 id 1만
+GET {{baseUrl}}/posts?page=2&limit=2
+
+### 6. 쿼리 조합 (author=철수 & search=여행) → 200, total 1
+GET {{baseUrl}}/posts?author=%EC%B2%A0%EC%88%98&search=%EC%97%AC%ED%96%89
+
+### 7. [실패] 잘못된 sort → 400
+GET {{baseUrl}}/posts?sort=abc
+
+### 8. [실패] page가 0 → 400
+GET {{baseUrl}}/posts?page=0
+
+########## 게시글 단건 조회 ##########
+
+### 9. 단건 조회 → 200
+GET {{baseUrl}}/posts/1
+
+### 10. [실패] 없는 id → 404
+GET {{baseUrl}}/posts/999
+
+### 11. [실패] 숫자가 아닌 id → 404
+GET {{baseUrl}}/posts/abc
+
+########## 게시글 작성 ##########
+
+### 12. 작성 → 201, id 4
+POST {{baseUrl}}/posts
+Content-Type: application/json
+
+{
+  "title": "부산 여행 계획",
+  "content": "다음 달에 갑니다",
+  "author": "민수"
+}
+
+### 13. [실패] title 없음 → 400
+POST {{baseUrl}}/posts
+Content-Type: application/json
+
+{
+  "content": "제목이 없습니다"
+}
+
+### 14. [실패] content 없음 → 400
+POST {{baseUrl}}/posts
+Content-Type: application/json
+
+{
+  "title": "내용이 없습니다"
+}
+
+### 15. [실패] title 101자 → 400
+POST {{baseUrl}}/posts
+Content-Type: application/json
+
+{
+  "title": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+  "content": "제목이 너무 깁니다"
+}
+
+########## 게시글 전체 수정 (PUT) ##########
+
+### 16. PUT으로 2번 교체 (author 생략) → 200, author가 "익명"으로 바뀜
+PUT {{baseUrl}}/posts/2
+Content-Type: application/json
+
+{
+  "title": "두 번째 (전체 수정)",
+  "content": "PUT은 전체를 교체합니다"
+}
+
+### 17. [실패] PUT인데 content 없음 → 400
+PUT {{baseUrl}}/posts/2
+Content-Type: application/json
+
+{
+  "title": "제목만 보냄"
+}
+
+### 18. [실패] PUT 없는 id → 404
+PUT {{baseUrl}}/posts/999
+Content-Type: application/json
+
+{
+  "title": "없는 글",
+  "content": "없는 글"
+}
+
+########## 게시글 부분 수정 (PATCH) ##########
+
+### 19. PATCH로 1번 title만 수정 → 200, content와 author는 그대로
+PATCH {{baseUrl}}/posts/1
+Content-Type: application/json
+
+{
+  "title": "첫 글 (부분 수정)"
+}
+
+### 20. [실패] PATCH title을 빈 문자열로 → 400
+PATCH {{baseUrl}}/posts/1
+Content-Type: application/json
+
+{
+  "title": ""
+}
+
+### 21. [실패] PATCH title 101자 → 400
+PATCH {{baseUrl}}/posts/1
+Content-Type: application/json
+
+{
+  "title": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+}
+
+### 22. [실패] PATCH 없는 id → 404
+PATCH {{baseUrl}}/posts/999
+Content-Type: application/json
+
+{
+  "title": "수정"
+}
+
+########## 댓글 ##########
+
+### 23. 1번 글의 댓글 목록 → 200, count 2
+GET {{baseUrl}}/posts/1/comments
+
+### 24. [실패] 없는 글의 댓글 목록 → 404
+GET {{baseUrl}}/posts/999/comments
+
+### 25. 댓글 작성 → 201, id 3
+POST {{baseUrl}}/posts/1/comments
+Content-Type: application/json
+
+{
+  "content": "좋은 글이네요",
+  "author": "영희"
+}
+
+### 26. [실패] 댓글 content 없음 → 400
+POST {{baseUrl}}/posts/1/comments
+Content-Type: application/json
+
+{
+  "author": "영희"
+}
+
+### 27. [실패] 없는 글에 댓글 작성 → 404
+POST {{baseUrl}}/posts/999/comments
+Content-Type: application/json
+
+{
+  "content": "없는 글에 댓글"
+}
+
+### 28. 댓글 삭제 → 204
+DELETE {{baseUrl}}/posts/1/comments/3
+
+### 29. [실패] 이미 삭제한 댓글 다시 삭제 → 404
+DELETE {{baseUrl}}/posts/1/comments/3
+
+### 30. [실패] 다른 글의 댓글 삭제 (1번 댓글은 1번 글 소속) → 404
+DELETE {{baseUrl}}/posts/2/comments/1
+
+### 31. [실패] 없는 글의 댓글 삭제 → 404
+DELETE {{baseUrl}}/posts/999/comments/1
+
+########## 게시글 삭제 ##########
+
+### 32. 1번 글 삭제 (댓글도 함께 삭제) → 204
+DELETE {{baseUrl}}/posts/1
+
+### 33. [실패] 삭제 후 다시 조회 → 404
+GET {{baseUrl}}/posts/1
+
+### 34. [실패] 삭제된 글의 댓글 조회 → 404
+GET {{baseUrl}}/posts/1/comments
+
+### 35. [실패] 이미 삭제한 글 다시 삭제 → 404
+DELETE {{baseUrl}}/posts/1
+
+########## 기타 ##########
+
+### 36. 미들웨어가 심은 req.user 확인 (GET /users/me) → 200
+GET {{baseUrl}}/users/me
+
+### 37. [실패] 없는 경로 → 404
+GET {{baseUrl}}/nope
+
+### 38. [실패] 깨진 JSON 본문 → 400
+POST {{baseUrl}}/posts
+Content-Type: application/json
+
+{ "title": "따옴표 안 닫힘 }
