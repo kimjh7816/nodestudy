@@ -1,86 +1,115 @@
-# 2주차 과제: 게시판 API 테스트
-# 위에서부터 순서대로 보내세요. (중간에 서버가 재시작되면 데이터가 초기화되니 처음부터)
-# 초기 데이터: 게시글 1(철수), 2(영희), 3(철수, "제주도 여행 후기") / 댓글 1, 2 (1번 글)
+# 게시판 API 테스트 (MySQL + Prisma)
+# 1) 먼저 board-api에서 `npm run seed` 로 DB를 초기화하세요. (모든 id가 1부터 다시 시작)
+# 2) 서버를 켜고(`npm run dev`) 위에서부터 순서대로 보내세요.
+# 초기 데이터: 사용자 1 철수, 2 영희, 3 민수 (email: chulsoo@test.com 등)
+#             게시글 1 "첫 글"(철수), 2 "두 번째"(영희), 3 "제주도 여행 후기"(철수)
+#             댓글 1(영희), 2(민수) — 1번 글
+#             좋아요: 1번 글 ← 영희, 민수 / 3번 글 ← 철수
+#             태그: 1번 글 [일상] / 3번 글 [여행, 제주]
+# 목록/단건의 isLiked는 "철수(id 1)가 눌렀는지" 기준입니다. (4주차에 로그인 사용자로 교체)
 
 @baseUrl = http://localhost:3000
 
-########## 게시글 목록 (쿼리) ##########
+########## 게시글 목록 (쿼리 + 관계) ##########
 
-### 1. 목록 조회 (기본: 최신순, page 1, limit 10) → 200, total 3, id 3→2→1
+### 1. 목록 조회 (최신순) → 200, total 3, 각 글에 author·likeCount·commentCount·isLiked (3번 글만 isLiked true)
 GET {{baseUrl}}/posts
 
-### 2. 작성자 필터 (author=철수) → 200, total 2
+### 2. 작성자 id 필터 (authorId=1) → 200, total 2
+GET {{baseUrl}}/posts?authorId=1
+
+### 3. 작성자 이름 필터 (author=철수) → 200, total 2
 GET {{baseUrl}}/posts?author=%EC%B2%A0%EC%88%98
 
-### 3. 제목 검색 (search=여행) → 200, total 1
+### 4. 검색 (search=여행, 제목 또는 내용) → 200, total 1
 GET {{baseUrl}}/posts?search=%EC%97%AC%ED%96%89
 
-### 4. 오래된순 정렬 → 200, id 1→2→3
+### 5. 오래된순 정렬 → 200, id 1→2→3
 GET {{baseUrl}}/posts?sort=oldest
 
-### 5. 페이지네이션 (page=2, limit=2) → 200, totalPages 2, data에 id 1만
+### 6. 페이지네이션 (page=2, limit=2) → 200, totalPages 2, data에 id 1만
 GET {{baseUrl}}/posts?page=2&limit=2
 
-### 6. 쿼리 조합 (author=철수 & search=여행) → 200, total 1
+### 7. 쿼리 조합 (author=철수 & search=여행) → 200, total 1
 GET {{baseUrl}}/posts?author=%EC%B2%A0%EC%88%98&search=%EC%97%AC%ED%96%89
 
-### 7. [실패] 잘못된 sort → 400
-GET {{baseUrl}}/posts?sort=abc
+### 8. limit 상한 (limit=999) → 200, limit이 50으로 제한됨
+GET {{baseUrl}}/posts?limit=999
 
-### 8. [실패] page가 0 → 400
-GET {{baseUrl}}/posts?page=0
+### 9. 잘못된 page/sort는 기본값으로 (page=0, sort=abc) → 200, page 1, 최신순
+GET {{baseUrl}}/posts?page=0&sort=abc
 
-########## 게시글 단건 조회 ##########
+### 10. [도전] 좋아요 많은 순 (sort=popular) → 200, id 1(좋아요 2)→3(1)→2(0)
+GET {{baseUrl}}/posts?sort=popular
 
-### 9. 단건 조회 → 200
+### 11. [실패] authorId가 숫자가 아님 → 400
+GET {{baseUrl}}/posts?authorId=abc
+
+########## 게시글 단건 조회 (중첩 include) ##########
+
+### 12. 단건 조회 → 200, author + 댓글 2개(각 댓글의 author) + likeCount 2 + commentCount 2
 GET {{baseUrl}}/posts/1
 
-### 10. [실패] 없는 id → 404
+### 13. [실패] 없는 id → 404
 GET {{baseUrl}}/posts/999
 
-### 11. [실패] 숫자가 아닌 id → 404
+### 14. [실패] 숫자가 아닌 id (parseId) → 400
 GET {{baseUrl}}/posts/abc
 
 ########## 게시글 작성 ##########
 
-### 12. 작성 → 201, id 4
+### 15. 작성 (태그 포함) → 201, id 4, tags ["부산", "여행"]
 POST {{baseUrl}}/posts
 Content-Type: application/json
 
 {
   "title": "부산 여행 계획",
   "content": "다음 달에 갑니다",
-  "author": "민수"
+  "authorId": 3,
+  "tags": ["여행", "부산"]
 }
 
-### 13. [실패] title 없음 → 400
+### 16. [실패] title 없음 → 400
 POST {{baseUrl}}/posts
 Content-Type: application/json
 
 {
-  "content": "제목이 없습니다"
+  "content": "제목이 없습니다",
+  "authorId": 1
 }
 
-### 14. [실패] content 없음 → 400
+### 17. [실패] authorId 없음 → 400
 POST {{baseUrl}}/posts
 Content-Type: application/json
 
 {
-  "title": "내용이 없습니다"
+  "title": "작성자 없음",
+  "content": "authorId를 안 보냄"
 }
 
-### 15. [실패] title 101자 → 400
+### 18. [실패] title 101자 → 400
 POST {{baseUrl}}/posts
 Content-Type: application/json
 
 {
   "title": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
-  "content": "제목이 너무 깁니다"
+  "content": "제목이 너무 깁니다",
+  "authorId": 1
+}
+
+### 19. [실패] 없는 사용자 authorId=999 (외래 키 위반 P2003) → 400
+POST {{baseUrl}}/posts
+Content-Type: application/json
+
+{
+  "title": "없는 작성자",
+  "content": "외래 키 위반",
+  "authorId": 999
 }
 
 ########## 게시글 전체 수정 (PUT) ##########
 
-### 16. PUT으로 2번 교체 (author 생략) → 200, author가 "익명"으로 바뀜
+### 20. PUT으로 2번 교체 → 200, title과 content 모두 바뀜 (tags를 안 보내면 태그는 비워짐)
 PUT {{baseUrl}}/posts/2
 Content-Type: application/json
 
@@ -89,7 +118,7 @@ Content-Type: application/json
   "content": "PUT은 전체를 교체합니다"
 }
 
-### 17. [실패] PUT인데 content 없음 → 400
+### 21. [실패] PUT인데 content 없음 → 400
 PUT {{baseUrl}}/posts/2
 Content-Type: application/json
 
@@ -97,7 +126,7 @@ Content-Type: application/json
   "title": "제목만 보냄"
 }
 
-### 18. [실패] PUT 없는 id → 404
+### 22. [실패] PUT 없는 id (P2025) → 404
 PUT {{baseUrl}}/posts/999
 Content-Type: application/json
 
@@ -108,7 +137,7 @@ Content-Type: application/json
 
 ########## 게시글 부분 수정 (PATCH) ##########
 
-### 19. PATCH로 1번 title만 수정 → 200, content와 author는 그대로
+### 23. PATCH로 1번 title만 수정 → 200, content는 그대로
 PATCH {{baseUrl}}/posts/1
 Content-Type: application/json
 
@@ -116,7 +145,7 @@ Content-Type: application/json
   "title": "첫 글 (부분 수정)"
 }
 
-### 20. [실패] PATCH title을 빈 문자열로 → 400
+### 24. [실패] PATCH title을 빈 문자열로 → 400
 PATCH {{baseUrl}}/posts/1
 Content-Type: application/json
 
@@ -124,7 +153,7 @@ Content-Type: application/json
   "title": ""
 }
 
-### 21. [실패] PATCH title 101자 → 400
+### 25. [실패] PATCH title 101자 → 400
 PATCH {{baseUrl}}/posts/1
 Content-Type: application/json
 
@@ -132,7 +161,7 @@ Content-Type: application/json
   "title": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
 }
 
-### 22. [실패] PATCH 없는 id → 404
+### 26. [실패] PATCH 없는 id (P2025) → 404
 PATCH {{baseUrl}}/posts/999
 Content-Type: application/json
 
@@ -140,74 +169,287 @@ Content-Type: application/json
   "title": "수정"
 }
 
+########## 태그 (N:M) ##########
+
+### 27. 태그로 필터 (tag=여행) → 200, total 2 (3번, 4번 글)
+GET {{baseUrl}}/posts?tag=%EC%97%AC%ED%96%89
+
+### 28. 없는 태그로 필터 → 200, total 0
+GET {{baseUrl}}/posts?tag=nope
+
+### 29. 태그 목록 + 글 수 → 200, count 4, 여행(2)이 맨 위
+GET {{baseUrl}}/tags
+
+### 30. PATCH로 2번 글 태그 교체 → 200, tags ["맛집", "일상"]
+PATCH {{baseUrl}}/posts/2
+Content-Type: application/json
+
+{
+  "tags": ["일상", "맛집"]
+}
+
+### 31. PATCH에서 tags를 안 보내면 태그 유지 → 200, tags ["맛집", "일상"] 그대로
+PATCH {{baseUrl}}/posts/2
+Content-Type: application/json
+
+{
+  "content": "태그는 안 건드림"
+}
+
+### 32. PATCH로 태그 모두 떼기 (빈 배열) → 200, tags []
+PATCH {{baseUrl}}/posts/2
+Content-Type: application/json
+
+{
+  "tags": []
+}
+
+### 33. 공백·중복 태그 정리 → 201, tags ["여행"] 하나만
+POST {{baseUrl}}/posts
+Content-Type: application/json
+
+{
+  "title": "태그 정리 테스트",
+  "content": "앞뒤 공백과 중복을 정리합니다",
+  "authorId": 2,
+  "tags": [" 여행 ", "여행"]
+}
+
+### 34. [실패] tags가 배열이 아님 → 400
+PATCH {{baseUrl}}/posts/2
+Content-Type: application/json
+
+{
+  "tags": "여행"
+}
+
+### 35. [실패] 빈 태그 → 400
+PATCH {{baseUrl}}/posts/2
+Content-Type: application/json
+
+{
+  "tags": ["여행", " "]
+}
+
+### 36. [실패] 태그 31자 → 400
+PATCH {{baseUrl}}/posts/2
+Content-Type: application/json
+
+{
+  "tags": ["가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"]
+}
+
+### 37. [실패] 태그 11개 → 400
+PATCH {{baseUrl}}/posts/2
+Content-Type: application/json
+
+{
+  "tags": ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
+}
+
 ########## 댓글 ##########
 
-### 23. 1번 글의 댓글 목록 → 200, count 2
+### 38. 1번 글의 댓글 목록 → 200, count 2, 각 댓글에 author
 GET {{baseUrl}}/posts/1/comments
 
-### 24. [실패] 없는 글의 댓글 목록 → 404
+### 39. [실패] 없는 글의 댓글 목록 → 404
 GET {{baseUrl}}/posts/999/comments
 
-### 25. 댓글 작성 → 201, id 3
+### 40. 댓글 작성 → 201, id 3
 POST {{baseUrl}}/posts/1/comments
 Content-Type: application/json
 
 {
   "content": "좋은 글이네요",
-  "author": "영희"
+  "authorId": 2
 }
 
-### 26. [실패] 댓글 content 없음 → 400
+### 41. [실패] 댓글 content 없음 → 400
 POST {{baseUrl}}/posts/1/comments
 Content-Type: application/json
 
 {
-  "author": "영희"
+  "authorId": 2
 }
 
-### 27. [실패] 없는 글에 댓글 작성 → 404
+### 42. [실패] 댓글 authorId 없음 → 400
+POST {{baseUrl}}/posts/1/comments
+Content-Type: application/json
+
+{
+  "content": "작성자 없음"
+}
+
+### 43. [실패] 없는 사용자로 댓글 작성 (P2003) → 400
+POST {{baseUrl}}/posts/1/comments
+Content-Type: application/json
+
+{
+  "content": "없는 사용자",
+  "authorId": 999
+}
+
+### 44. [실패] 없는 글에 댓글 작성 → 404
 POST {{baseUrl}}/posts/999/comments
 Content-Type: application/json
 
 {
-  "content": "없는 글에 댓글"
+  "content": "없는 글에 댓글",
+  "authorId": 1
 }
 
-### 28. 댓글 삭제 → 204
-DELETE {{baseUrl}}/posts/1/comments/3
+### 45. 댓글 삭제 (DELETE /comments/:id) → 204
+DELETE {{baseUrl}}/comments/3
 
-### 29. [실패] 이미 삭제한 댓글 다시 삭제 → 404
-DELETE {{baseUrl}}/posts/1/comments/3
+### 46. [실패] 이미 삭제한 댓글 다시 삭제 (P2025) → 404
+DELETE {{baseUrl}}/comments/3
 
-### 30. [실패] 다른 글의 댓글 삭제 (1번 댓글은 1번 글 소속) → 404
-DELETE {{baseUrl}}/posts/2/comments/1
+### 47. [실패] 없는 댓글 → 404
+DELETE {{baseUrl}}/comments/999
 
-### 31. [실패] 없는 글의 댓글 삭제 → 404
-DELETE {{baseUrl}}/posts/999/comments/1
+### 48. [실패] 숫자가 아닌 댓글 id → 400
+DELETE {{baseUrl}}/comments/abc
 
-########## 게시글 삭제 ##########
+########## 좋아요 토글 ##########
 
-### 32. 1번 글 삭제 (댓글도 함께 삭제) → 204
+### 49. 2번 글에 철수가 좋아요 → 200, liked true, likeCount 1
+POST {{baseUrl}}/posts/2/like
+Content-Type: application/json
+
+{
+  "userId": 1
+}
+
+### 50. 같은 요청 다시 (취소) → 200, liked false, likeCount 0
+POST {{baseUrl}}/posts/2/like
+Content-Type: application/json
+
+{
+  "userId": 1
+}
+
+### 51. [실패] 없는 글에 좋아요 → 404
+POST {{baseUrl}}/posts/999/like
+Content-Type: application/json
+
+{
+  "userId": 1
+}
+
+### 52. [실패] userId 없음 → 400
+POST {{baseUrl}}/posts/2/like
+Content-Type: application/json
+
+{}
+
+### 53. [실패] 없는 사용자 userId=999 (P2003) → 400
+POST {{baseUrl}}/posts/2/like
+Content-Type: application/json
+
+{
+  "userId": 999
+}
+
+########## 사용자 ##########
+
+### 54. 사용자 생성 → 201, id 4
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "username": "지수",
+  "email": "jisu@test.com",
+  "bio": "안녕하세요"
+}
+
+### 55. [실패] username 중복 (철수, UNIQUE 위반 P2002) → 409
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "username": "철수",
+  "email": "new@test.com"
+}
+
+### 56. [실패] email 중복 (P2002) → 409
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "username": "새사용자",
+  "email": "chulsoo@test.com"
+}
+
+### 57. [실패] email 없음 → 400
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "username": "이메일없음"
+}
+
+### 58. [실패] email 형식 오류 → 400
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "username": "형식오류",
+  "email": "not-an-email"
+}
+
+### 59. [실패] username 21자 → 400
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "username": "가가가가가가가가가가가가가가가가가가가가가",
+  "email": "long@test.com"
+}
+
+### 60. 사용자 목록 + 글·댓글 수 (_count) → 200, count 4
+GET {{baseUrl}}/users
+
+### 61. 프로필 조회 (postCount 포함, 최근 글 5개, email 없음) → 200, postCount 2
+GET {{baseUrl}}/users/1
+
+### 62. [실패] 없는 사용자 → 404
+GET {{baseUrl}}/users/999
+
+### 63. [실패] 숫자가 아닌 사용자 id → 400
+GET {{baseUrl}}/users/abc
+
+### 64. [도전] 특정 사용자의 글 목록 → 200, total 2
+GET {{baseUrl}}/users/1/posts
+
+### 65. [도전] 특정 사용자의 글 목록 (오래된순, limit 1) → 200, total 2, totalPages 2
+GET {{baseUrl}}/users/1/posts?sort=oldest&limit=1
+
+### 66. [실패] 없는 사용자의 글 목록 → 404
+GET {{baseUrl}}/users/999/posts
+
+### 67. 미들웨어가 심은 req.user 확인 (GET /users/me) → 200
+GET {{baseUrl}}/users/me
+
+########## 게시글 삭제 (Cascade) ##########
+
+### 68. 1번 글 삭제 (댓글·좋아요는 DB가 함께 삭제) → 204
 DELETE {{baseUrl}}/posts/1
 
-### 33. [실패] 삭제 후 다시 조회 → 404
+### 69. [실패] 삭제 후 다시 조회 → 404
 GET {{baseUrl}}/posts/1
 
-### 34. [실패] 삭제된 글의 댓글 조회 → 404
+### 70. [실패] 삭제된 글의 댓글 조회 → 404
 GET {{baseUrl}}/posts/1/comments
 
-### 35. [실패] 이미 삭제한 글 다시 삭제 → 404
+### 71. [실패] 이미 삭제한 글 다시 삭제 (P2025) → 404
 DELETE {{baseUrl}}/posts/1
 
 ########## 기타 ##########
 
-### 36. 미들웨어가 심은 req.user 확인 (GET /users/me) → 200
-GET {{baseUrl}}/users/me
-
-### 37. [실패] 없는 경로 → 404
+### 72. [실패] 없는 경로 → 404
 GET {{baseUrl}}/nope
 
-### 38. [실패] 깨진 JSON 본문 → 400
+### 73. [실패] 깨진 JSON 본문 → 400
 POST {{baseUrl}}/posts
 Content-Type: application/json
 
