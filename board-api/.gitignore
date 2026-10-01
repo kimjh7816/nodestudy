@@ -1,0 +1,11 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+generated/
+
+# AI 도구 스킬 파일
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
