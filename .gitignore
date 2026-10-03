@@ -1,3 +1,6 @@
 node_modules/
 .env
 *.log
+
+# 업로드 크기 제한 테스트용 6MB 파일 (test.http 주석의 명령으로 생성)
+test-files/large.jpg
