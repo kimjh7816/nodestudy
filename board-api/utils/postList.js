@@ -1,16 +1,16 @@
-// 게시글 목록 공통 처리 — GET /posts 와 GET /users/:id/posts 가 같은 응답 모양을 쓰도록 모아둡니다
+// 게시글 응답 공통 처리 — GET /posts, GET /posts/:id, GET /users/:id/posts 가 같은 모양을 쓰도록 모아둡니다
 const prisma = require("../lib/prisma");
 
 const LIMIT_MAX = 50;
 
-// 지금 로그인한 사용자라고 가정하는 id (4주차에 토큰으로 교체)
-const CURRENT_USER_ID = 1;
-
 // 작성자는 필요한 필드만 (이메일 등은 노출하지 않음)
-const authorSelect = { select: { id: true, username: true } };
+const authorSelect = { select: { id: true, username: true, profileImage: true } };
 
 // 태그는 이름만, 가나다순으로
 const tagsSelect = { select: { name: true }, orderBy: { name: "asc" } };
+
+// 사진은 순서대로
+const imagesSelect = { select: { id: true, url: true, order: true }, orderBy: { order: "asc" } };
 
 // 정렬 기준 — latest(기본) / oldest / popular(좋아요 많은 순)
 const buildOrderBy = (sort) => {
@@ -26,13 +26,16 @@ const parsePaging = ({ page, limit }) => {
   return { pageNum, limitNum };
 };
 
-// 목록의 각 글에 붙일 관계 데이터
-const listInclude = {
+// 목록·단건에 붙일 관계 데이터
+// userId: 로그인한 사용자 id (비로그인이면 undefined → 내 좋아요는 조회하지 않음)
+// ※ where: { userId: undefined }는 Prisma가 "조건 없음"으로 처리해 모든 좋아요를 가져오므로 반드시 분기합니다
+const buildPostInclude = (userId) => ({
   author: authorSelect,
   tags: tagsSelect,
+  images: imagesSelect,
   _count: { select: { likes: true, comments: true } },
-  likes: { where: { userId: CURRENT_USER_ID }, select: { userId: true } },   // 내 좋아요만
-};
+  ...(userId && { likes: { where: { userId }, select: { userId: true } } }),   // 내 좋아요만
+});
 
 // 태그 객체 배열 [{ name: "여행" }] → 이름 배열 ["여행"]
 const toTagNames = (tags) => tags.map((t) => t.name);
@@ -43,11 +46,11 @@ const toPostItem = ({ likes, _count, tags, ...post }) => ({
   tags: toTagNames(tags),
   likeCount: _count.likes,
   commentCount: _count.comments,
-  isLiked: likes.length > 0,
+  isLiked: Boolean(likes && likes.length > 0),   // 비로그인이면 항상 false
 });
 
 // where 조건으로 목록 + 페이지 정보를 만들어 돌려줍니다
-const findPostPage = async ({ where, query }) => {
+const findPostPage = async ({ where, query, userId }) => {
   const { pageNum, limitNum } = parsePaging(query);
 
   // 데이터와 총 개수를 동시에 조회
@@ -57,7 +60,7 @@ const findPostPage = async ({ where, query }) => {
       orderBy: buildOrderBy(query.sort),
       skip: (pageNum - 1) * limitNum,
       take: limitNum,
-      include: listInclude,
+      include: buildPostInclude(userId),
     }),
     prisma.post.count({ where }),
   ]);
@@ -68,4 +71,12 @@ const findPostPage = async ({ where, query }) => {
   };
 };
 
-module.exports = { CURRENT_USER_ID, authorSelect, tagsSelect, toTagNames, toPostItem, findPostPage };
+module.exports = {
+  authorSelect,
+  tagsSelect,
+  imagesSelect,
+  buildPostInclude,
+  toTagNames,
+  toPostItem,
+  findPostPage,
+};

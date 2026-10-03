@@ -9,3 +9,5 @@ generated/
 .claude/
 .windsurf/
 skills-lock.json
+# 업로드한 파일
+uploads/
