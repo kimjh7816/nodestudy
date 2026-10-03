@@ -8,15 +8,18 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique @db.VarChar(20)
-  email     String   @unique
-  bio       String   @default("") @db.VarChar(150)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  posts     Post[]
-  comments  Comment[]
-  likes     Like[]
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(20)
+  email        String   @unique
+  password     String                              // 해시값 저장 (60자)
+  bio          String   @default("") @db.VarChar(150)
+  profileImage String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  posts        Post[]
+  comments     Comment[]
+  likes        Like[]
 }
 
 model Post {
@@ -31,6 +34,19 @@ model Post {
   comments  Comment[]
   likes     Like[]
   tags      Tag[]      // 암시적 N:M — 중간 테이블(_PostToTag)을 Prisma가 알아서 만듭니다
+  images    PostImage[]
+}
+
+// 게시글 사진 (1:N) — 파일은 uploads/ 폴더에, DB에는 경로(URL)만 저장합니다
+model PostImage {
+  id        Int    @id @default(autoincrement())
+  url       String
+  order     Int    @default(0)          // 사진 순서
+
+  postId    Int
+  post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
 }
 
 model Tag {

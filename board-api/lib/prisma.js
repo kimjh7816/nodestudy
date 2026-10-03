@@ -15,7 +15,9 @@ const adapter = new PrismaMariaDb({
 
 const prisma = new PrismaClient({
   adapter,
-  log: ["query"],
+  omit: {
+    user: { password: true },   // 모든 User 조회에서 password 기본 제외
+  },
 });
 
 module.exports = prisma;
